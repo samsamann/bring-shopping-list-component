@@ -1,0 +1,17 @@
+
+default_config:
+
+debugpy:
+  start: true
+  wait: false
+
+sensor:
+  - platform: bring_shopping_list
+    lists:
+      - id: 00000000-0000-0000-0000-000000000000
+        name: Home
+
+logger:
+  default: info
+  logs:
+    custom_components.bring_shopping_list: debug
