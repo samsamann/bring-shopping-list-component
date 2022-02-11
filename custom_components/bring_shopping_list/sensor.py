@@ -1,65 +1,66 @@
-import os.path
+"""Platform for sensor integration."""
 import logging
-import json
-import requests
-import voluptuous as vol
+
 import homeassistant.helpers.config_validation as cv
-from datetime import datetime
-from homeassistant.components.sensor import PLATFORM_SCHEMA
-from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT, CONF_SSL
-from homeassistant.helpers.entity import Entity
+import voluptuous as vol
+from homeassistant.components.sensor import PLATFORM_SCHEMA, SensorEntity
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 from requests import get
 
-
-#import pprint
-
-__version__ = '0.0.1'
+__version__ = "0.1.0"
 
 ICON = "mdi:cart"
 ICONEMPTY = "mdi:cart-outline"
-CONF_LISTS = 'lists'
-CONF_LOCALE = 'locale'
-SENSOR_PREFIX = 'bring_shopping_list_'
+CONF_ID = "id"
+CONF_LISTS = "lists"
+CONF_LOCALE = "locale"
+CONF_NAME = "name"
+SENSOR_PREFIX = "bring_shopping_list_"
 
 LOGGER = logging.getLogger(__name__)
 
+LIST_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_ID): cv.matches_regex("^.{8}-.{4}-.{4}-.{4}-.{12}$"),
+        vol.Optional(CONF_NAME, default=""): cv.string,
+        vol.Optional(CONF_LOCALE, default="en-US"): cv.string,
+    }
+)
 
-PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
-
-    # vol.Optional(CONF_SSL, default=False): cv.boolean,
-    # vol.Optional(CONF_SSL_CERT, default=False): cv.boolean,
-    # vol.Required(CONF_TOKEN): cv.string,
-    # vol.Optional(CONF_MAX, default=5): cv.string,
-    # vol.Optional(CONF_SERVER): cv.string,
-    # vol.Optional(CONF_DL_IMAGES, default=True): cv.boolean,
-    # vol.Optional(CONF_HOST, default='localhost'): cv.string,
-    # vol.Optional(CONF_PORT, default=32400): cv.port,
-    vol.Required(CONF_LISTS): vol.All(cv.ensure_list, [cv.string]),
-    vol.Optional(CONF_LOCALE, default='en-US'): cv.string,
-    # vol.Optional(CONF_IMG_CACHE, default='/custom-lovelace/upcoming-media-card/images/plex/'): cv.string
-})
-
-
-def setup_platform(hass, config, add_entities, discovery_info=None):
-    for info in discovery_info[CONF_LISTS]:
-        add_entities([BringSensor(info)])
+PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(
+    {
+        vol.Required(CONF_LISTS): vol.All(cv.ensure_list, [LIST_SCHEMA]),
+        vol.Optional(CONF_LOCALE, default="en-US"): cv.string,
+    }
+)
 
 
-class BringSensor(Entity):
+def setup_platform(
+    hass: HomeAssistant,
+    config: ConfigType,
+    add_entities: AddEntitiesCallback,
+    discovery_info: DiscoveryInfoType = None,
+) -> None:
+    for config_entity in config[CONF_LISTS]:
+        add_entities([BringSensor(config_entity)])
 
+
+class BringSensor(SensorEntity):
     def __init__(self, config):
         self._state = None
         self._purchase = []
         self._recently = []
-        self._listId = config['id']
-        self._name = config['id']
+        self._listId = config["id"]
+        self._name = config["id"]
 
-        if 'name' in config:
-            self._name = config['name']
+        if "name" in config:
+            self._name = config["name"]
 
-        self._locale = 'en-US'
-        if 'locale' in config:
-            self._locale = config['locale']
+        self._locale = "en-US"
+        if "locale" in config:
+            self._locale = config["locale"]
 
     @property
     def name(self):
@@ -104,10 +105,10 @@ class BringSensor(Entity):
 
             item["key"] = item["image"]
 
-            if(item["name"] in articles):
+            if item["name"] in articles:
                 item["name"] = articles[item["name"]]
             else:
-                if(found == 0):
+                if found == 0:
                     item["image"] = item["name"][0]
 
             item["image"] = self.purge(item["image"])
@@ -141,7 +142,7 @@ class BringSensor(Entity):
         url = f"https://api.getbring.com/rest/bringlists/{self._listId}/details"
         details = get(url=url).json()
 
-        url = f'https://api.getbring.com/rest/bringlists/{self._listId}'
+        url = f"https://api.getbring.com/rest/bringlists/{self._listId}"
         data = get(url=url).json()
 
         purchase = data["purchase"]
@@ -153,10 +154,12 @@ class BringSensor(Entity):
         self._state = len(purchase)
 
     def purge(self, item):
-        return item.lower()\
-            .replace("é", "e")\
-            .replace("ä", "ae")\
-            .replace("-", "_")\
-            .replace("ö", "oe")\
-            .replace("ü", "ue")\
+        return (
+            item.lower()
+            .replace("é", "e")
+            .replace("ä", "ae")
+            .replace("-", "_")
+            .replace("ö", "oe")
+            .replace("ü", "ue")
             .replace(" ", "_")
+        )
